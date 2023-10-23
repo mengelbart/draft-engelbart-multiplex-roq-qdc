@@ -1,0 +1,244 @@
+
+
+
+
+Network Working Group                                       M. Engelbart
+Internet-Draft                                                    J. Ott
+Intended status: Standards Track             Technical University Munich
+Expires: 25 April 2024                                   23 October 2023
+
+
+              Multiplexing RTP and Data Channels over QUIC
+                draft-engelbart-multiplex-roq-qdc-latest
+
+Abstract
+
+   This document defines a multiplexing scheme for using RTP over QUIC
+   and QUIC Data Channels in a single QUIC connection.
+
+Discussion Venues
+
+   This note is to be removed before publishing as an RFC.
+
+   Source for this draft and an issue tracker can be found at
+   https://github.com/mengelbart/draft-engelbart-multiplex-roq-qdc.
+
+Status of This Memo
+
+   This Internet-Draft is submitted in full conformance with the
+   provisions of BCP 78 and BCP 79.
+
+   Internet-Drafts are working documents of the Internet Engineering
+   Task Force (IETF).  Note that other groups may also distribute
+   working documents as Internet-Drafts.  The list of current Internet-
+   Drafts is at https://datatracker.ietf.org/drafts/current/.
+
+   Internet-Drafts are draft documents valid for a maximum of six months
+   and may be updated, replaced, or obsoleted by other documents at any
+   time.  It is inappropriate to use Internet-Drafts as reference
+   material or to cite them other than as "work in progress."
+
+   This Internet-Draft will expire on 25 April 2024.
+
+Copyright Notice
+
+   Copyright (c) 2023 IETF Trust and the persons identified as the
+   document authors.  All rights reserved.
+
+   This document is subject to BCP 78 and the IETF Trust's Legal
+   Provisions Relating to IETF Documents (https://trustee.ietf.org/
+   license-info) in effect on the date of publication of this document.
+   Please review these documents carefully, as they describe your rights
+   and restrictions with respect to this document.  Code Components
+   extracted from this document must include Revised BSD License text as
+   described in Section 4.e of the Trust Legal Provisions and are
+   provided without warranty as described in the Revised BSD License.
+
+Table of Contents
+
+   1.  Introduction
+   2.  Connection Establishment
+     2.1.  Draft version identification
+   3.  Multiplexing
+     3.1.  Multiplexing using External Signaling
+     3.2.  Multiplexing without Signaling
+   4.  Error Handling
+   5.  Security Considerations
+   6.  IANA Considerations
+     6.1.  Registration of an ALPN Identification String
+   7.  References
+     7.1.  Normative References
+     7.2.  Informative References
+   Acknowledgments
+   Authors' Addresses
+
+1.  Introduction
+
+   One of the requirements in the development of RTP over QUIC (RoQ)
+   ([I-D.draft-ietf-avtcore-rtp-over-quic]) was the ability to share a
+   QUIC connection for RTP, RTCP, and other protocols.  RoQ uses a flow
+   identifier to multiplex different RTP streams, RTCP, and possibly
+   other protocols.  However, RoQ does not describe which protocol can
+   be multiplexed with RoQ on the same QUIC connection.
+   [I-D.draft-engelbart-quic-data-channels] describes a simple protocol
+   similar to WebRTC data channels ([RFC8831]) called QUIC Data Channels
+   (QDC).  QDC uses QUIC instead of SCTP over DTLS and also uses an
+   identifier similar to the one used by RoQ.  This document describes
+   how the two protocols can be multiplexed in one QUIC connection.
+
+2.  Connection Establishment
+
+   QUIC requires the use of ALPN [RFC7301] during connection setup.
+   Connections multiplexing RoQ and QDC use the "roq-qdc-mux" token
+   during the TLS handshake.
+
+2.1.  Draft version identification
+
+      *RFC Editor's note:* Please remove this section prior to
+      publication of a final version of this document.
+
+   Only implementations of the final, published RFC can identify
+   themselves as "roq-qdc-mux".  Until such an RFC exists,
+   implementations MUST NOT identify themselves using this string.
+
+   Implementations of draft versions of the protocol MUST add the string
+   "-" and the corresponding draft number to the identifier.  For
+   example, draft-engelbart-multiplex-roq-qdc-04 is identified using the
+   string "roq-qdc-mux-04".
+
+   Non-compatible experiments based on these draft versions MUST append
+   the string "-" and an experiment name to the identifier.
+
+3.  Multiplexing
+
+   The two protocols for which this document describes a multiplexing
+   scheme use a variable length integer as the first element on every
+   QUIC stream and datagram.  In RoQ, this integer is called a flow
+   identifier, and it is used to multiplex different RTP streams and
+   RTCP.  In QDC, the integer is called a channel identifier and is used
+   to multiplex multiple data channels.
+
+   This document describes two options for multiplexing RoQ and QDC.
+   The first option builds upon the external signaling that is required
+   by RoQ (Section 3.1).  The second one works without any external
+   signaling but places some restrictions on the chosen flow and channel
+   identifiers (Section 3.2).
+
+      *TODO:* If we define two methods, we also need to say how to
+      choose between them.  This could involve more external signaling,
+      e.g., SDP, or we could use two different ALPNs.  It might be
+      easier to just settle on one single way to do it.
+
+3.1.  Multiplexing using External Signaling
+
+   RoQ requires using an external signaling protocol like the one
+   described in [I-D.draft-dawkins-avtcore-sdp-rtp-quic].  The signaling
+   includes the negotiation of flow identifiers for RoQ.  In this
+   scheme, applications MUST agree on all identifiers used by RoQ using
+   the external signaling.  Any identifier not assigned to a RoQ flow
+   using external signaling MUST be treated as a QDC channel ID.
+   Endpoints MUST NOT use an identifier for RoQ if it has not been
+   signaled and agreed upon by both peers using the external signaling
+   protocol.
+
+3.2.  Multiplexing without Signaling
+
+   When there is no external signaling for negotiation of identifiers
+   available, endpoints can use the second least significant bit (0x02)
+   of the flow or channel identifiers for multiplexing.  RoQ flows have
+   the bit set to 1, and QDC channels have the bit set to 0.
+
+   The second least significant bit is used instead of the least
+   significant bit because the least significant bit already has a
+   special function in QDC.
+
+4.  Error Handling
+
+      *TODO:* This looks tricky.  Some error codes will be easy to
+      demultiplex when they are associated with a flow/channel ID.  But
+      some might not be, e.g., in CONNECTION_CLOSE frames.
+
+5.  Security Considerations
+
+   The security considerations for the QUIC protocol and datagram
+   extension described in Section 21 of [RFC9000], Section 9 of
+   [RFC9001], Section 8 of [RFC9002] and Section 6 of [RFC9221] apply.
+
+6.  IANA Considerations
+
+6.1.  Registration of an ALPN Identification String
+
+   This document creates a new registration for the identification of
+   the protocol in the "TLS Application-Layer Protocol Negotiation
+   (ALPN) Protocol IDs" registry [RFC7301].
+
+   The "roq-qdc-mux" string identifies RoQ:
+
+   Protocol:  Multiplexed RoQ and QDC
+
+   Identification Sequence:  TODO
+
+   Specification:  This document
+
+7.  References
+
+7.1.  Normative References
+
+   [I-D.draft-engelbart-quic-data-channels]
+              "*** BROKEN REFERENCE ***".
+
+   [I-D.draft-ietf-avtcore-rtp-over-quic]
+              Ott, J., Engelbart, M., and S. Dawkins, "RTP over QUIC
+              (RoQ)", Work in Progress, Internet-Draft, draft-ietf-
+              avtcore-rtp-over-quic-07, 23 October 2023,
+              <https://datatracker.ietf.org/doc/html/draft-ietf-avtcore-
+              rtp-over-quic-07>.
+
+   [RFC7301]  Friedl, S., Popov, A., Langley, A., and E. Stephan,
+              "Transport Layer Security (TLS) Application-Layer Protocol
+              Negotiation Extension", RFC 7301, DOI 10.17487/RFC7301,
+              July 2014, <https://www.rfc-editor.org/rfc/rfc7301>.
+
+   [RFC9000]  Iyengar, J., Ed. and M. Thomson, Ed., "QUIC: A UDP-Based
+              Multiplexed and Secure Transport", RFC 9000,
+              DOI 10.17487/RFC9000, May 2021,
+              <https://www.rfc-editor.org/rfc/rfc9000>.
+
+   [RFC9001]  Thomson, M., Ed. and S. Turner, Ed., "Using TLS to Secure
+              QUIC", RFC 9001, DOI 10.17487/RFC9001, May 2021,
+              <https://www.rfc-editor.org/rfc/rfc9001>.
+
+   [RFC9002]  Iyengar, J., Ed. and I. Swett, Ed., "QUIC Loss Detection
+              and Congestion Control", RFC 9002, DOI 10.17487/RFC9002,
+              May 2021, <https://www.rfc-editor.org/rfc/rfc9002>.
+
+   [RFC9221]  Pauly, T., Kinnear, E., and D. Schinazi, "An Unreliable
+              Datagram Extension to QUIC", RFC 9221,
+              DOI 10.17487/RFC9221, March 2022,
+              <https://www.rfc-editor.org/rfc/rfc9221>.
+
+7.2.  Informative References
+
+   [I-D.draft-dawkins-avtcore-sdp-rtp-quic]
+              Dawkins, S., "SDP Offer/Answer for RTP using QUIC as
+              Transport", Work in Progress, Internet-Draft, draft-
+              dawkins-avtcore-sdp-rtp-quic-00, 28 January 2022,
+              <https://datatracker.ietf.org/doc/html/draft-dawkins-
+              avtcore-sdp-rtp-quic-00>.
+
+   [RFC8831]  Jesup, R., Loreto, S., and M. Tüxen, "WebRTC Data
+              Channels", RFC 8831, DOI 10.17487/RFC8831, January 2021,
+              <https://www.rfc-editor.org/rfc/rfc8831>.
+
+Acknowledgments
+
+Authors' Addresses
+
+   Mathis Engelbart
+   Technical University Munich
+   Email: mathis.engelbart@gmail.com
+
+
+   Jörg Ott
+   Technical University Munich
+   Email: ott@in.tum.de
