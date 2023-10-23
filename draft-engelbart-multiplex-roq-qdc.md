@@ -1,5 +1,6 @@
 ---
 title: "Multiplexing RTP and Data Channels over QUIC"
+abbrev: "Multiplexing RoQ and QDC"
 docname: draft-engelbart-multiplex-roq-qdc-latest
 category: std
 date: {DATE}
